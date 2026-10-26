@@ -51,17 +51,19 @@
 - 새 폴더에는 기존 폴더의 인증·설정 파일을 복사하지 않았고, 비밀 값 없이 실행됨.
 - 이식성 점검: 소스에서 절대경로·비밀 값 패턴을 검색했을 때 제공 문서·제공 연결 코드의 설명 문구만 검출되었고, 학생 작성 코드(`student/extension.mjs`)에는 없음.
 
-### 2-2. Windows PC 별도 폴더 재현 (학생 직접 확인)
+### 2-2. Windows PC 실행 확인 (학생 진술)
 
-원래 작업 폴더(`on-client`)에서는 `npm.cmd run demo`로 기동하여 같은 주소에서 화면이 표시됨을 확인했습니다(Node.js 24.22). **별도 새 폴더에서 `git clone`한 뒤 PC에서 실행한 재현은 이 기록 시점에 수행하지 않았습니다.** 수행하면 아래 순서로 기록합니다.
+학생이 2026-10-26 17:13 KST 전후에 직접 수행했다고 밝힌 내용입니다. 서버가 확인한 것이 아니라 **학생 진술**이며, 단계별 출력 문구는 이 기록에 옮겨 적지 않았습니다. 수행 폴더는 원래 작업 폴더(`on-client`)이고, 새 폴더에서 `git clone`한 것은 아닙니다.
 
-| 순서 | 명령 | 기록란 |
+| 순서 | 명령 | 기록 |
 |---|---|---|
-| 1 | 빈 폴더에서 `git clone https://github.com/minsanghwang/aleph-qesheb.git` | (미수행) |
-| 2 | `cd aleph-qesheb\on-client` 후 `node --version` | (미수행) |
-| 3 | `npm.cmd run demo` | (미수행) |
-| 4 | 브라우저 `http://127.0.0.1:5189` | (미수행) |
-| 5 | `Ctrl+C` 종료 후 재실행 | (미수행) |
+| 1 | 빈 폴더에서 `git clone https://github.com/minsanghwang/aleph-qesheb.git` | **수행하지 않음**(2-1에서 클라우드 작업 공간이 대신 수행) |
+| 2 | `node --version` | 학생 수행 (Node.js 24.22, 앞선 작업에서 확인한 값) |
+| 3 | `npm.cmd run demo` | 학생 수행 |
+| 4 | 브라우저 `http://127.0.0.1:5189` | 학생 수행. 같은 시각 수업용 AI가 같은 주소에서 학생 칸 표시를 확인(17:04경) |
+| 5 | `Ctrl+C` 종료 후 재실행 | 학생 수행 |
+
+Windows PC에서 새 폴더에 `git clone`한 실행은 이 기록 시점에 하지 않았습니다.
 
 ## 3. 13~21단계 결과표
 
@@ -95,5 +97,5 @@
 
 - 지원: Windows PowerShell + Node.js 24.x에서 `npm.cmd run demo`로 예제 자료 화면 확인. Node.js 22.23.4(Linux)에서도 demo 기동을 확인했으나 지원 환경으로 선언하지 않음.
 - 미연결: 실제 회사 시스템(SDP) 연결, 계정 연결·AI 앱 승인·모델 점검 성공, 실제 AI 사건 설명, 보안 조치 실집행·효과 관측, 실제 OSV 조회.
-- 미수행: Windows PC 별도 폴더 재현(2-2), `tools/start-alekov.ps1` 실행.
+- 미수행: Windows PC의 새 폴더 `git clone` 재현, `tools/start-alekov.ps1` 실행.
 - 검토 구분: AI 원문 검토는 코드·문서의 일치를 읽고 판정하는 것이며 실행 성공의 증명이 아닙니다.
