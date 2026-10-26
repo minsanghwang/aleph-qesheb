@@ -305,6 +305,39 @@ function copyButton(diagnostics) {
   return wrap;
 }
 
+// 17단계 · 앱 내부 AI 연결 상태 표시에 쓰는 보조 값과 함수입니다. 앞 단계 함수는 바꾸지 않습니다.
+// 연결 점검(모델 목록 응답)과 실제 사건 설명 실행은 서로 다른 일입니다. 오류는 제공 코드가 안전하게 바꿔 준 code·message만 씁니다.
+const AI_CAUSES = [
+  { title: '권한 준비 중 또는 확인 불가', guide: '담당자에게 계정 연결과 앱 권한 확인을 요청하세요. 학생 잘못이 아니라 운영 측 준비가 끝나지 않았거나 확인할 수 없는 상태입니다.',
+    codes: ['ON_AI_PROVISIONING_PENDING', 'AI_REQUEST_UNVERIFIED', 'ON_AI_AUTHORIZATION_CHANGED', 'SUBJECT_SCOPE_UNVERIFIED', 'ON_AI_INVALID_INPUT', 'ON_AI_INVALID_OUTPUT'] },
+  { title: '인증 실패', guide: '계정 연결을 다시 확인하고, 계속되면 담당자에게 확인하세요.', codes: ['WB_CLCO_AUTH_REQUIRED'] },
+  { title: '접근 제한', guide: '학생 앱 AI 이용이 제한된 상태입니다. 담당자에게 확인하세요.', codes: ['WB_CLCO_ACCESS_BLOCKED'] },
+  { title: '사용량·이용 한도', guide: '담당자에게 확인하세요.', codes: ['WB_CLCO_COHORT_BUDGET_EXHAUSTED', 'WB_CLCO_LIMIT_REACHED'] },
+  { title: '이용 시간 아님', guide: '이용 시간을 확인하세요.', codes: ['WB_CLCO_SESSION_CLOSED'] },
+  { title: '요청 제한', guide: '잠시 뒤 직접 다시 점검하세요.', codes: ['WB_CLCO_RATE_LIMITED'] },
+  { title: '시간 초과', guide: '잠시 뒤 직접 다시 점검하세요.', codes: ['WB_CLCO_TIMEOUT', 'REQUEST_TIMEOUT', 'ENGINE_TIMEOUT', 'TIMEOUT'] },
+  { title: '네트워크 오류', guide: '앱 서버가 켜져 있는지 확인한 뒤 잠시 뒤 직접 다시 점검하세요.', codes: ['NETWORK_ERROR'] },
+  { title: '취소됨', guide: '요청을 취소했습니다. 이전 결과는 현재 결과가 아닙니다.', codes: ['WB_CLCO_CANCELLED', 'CANCELLED', 'REQUEST_CANCELLED'] },
+  { title: '쓸 수 있는 모델 없음', guide: '담당자에게 모델 허용 설정 확인을 요청하세요.', codes: ['ON_AI_MODEL_LIST_EMPTY', 'MODEL_NOT_CONFIGURED'] },
+];
+
+function aiCause(code) {
+  return AI_CAUSES.find((cause) => cause.codes.includes(code))
+    || { title: '확인 불가', guide: '원인을 확인할 수 없습니다. 담당자에게 확인하세요.' };
+}
+
+// 오류 하나를 원인·code·message·안내로 나눠 보여 줍니다. 열쇠·원문 오류는 쓰지 않습니다.
+function aiErrorBox(error, heading) {
+  const code = typeof error?.code === 'string' && error.code ? error.code : 'UNKNOWN';
+  const cause = aiCause(code);
+  const box = document.createElement('div');
+  box.append(text('p', 'state state-error', `${heading}: ${cause.title}`));
+  const list = document.createElement('dl');
+  list.append(row('code', safeText(code)), row('message', safeText(error?.message ?? '서버 메시지 없음')), row('안내', cause.guide));
+  box.append(list);
+  return box;
+}
+
 export function createStudentView() {
   return {
     renderIdentity({ me, devices, sessions } = {}) {
@@ -463,8 +496,62 @@ export function createStudentView() {
       return root;
     },
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
-    renderAiConnection() { return '학생 구현 대기: 모델 응답 점검과 실제 사건 설명을 구분하고 AI 오류·취소·수동 복구를 안내하세요.'; },
-    renderExplanation() { return '학생 구현 대기: 선택한 사건의 근거·규칙·현재 상태와 AI 설명을 연결하세요. 제안은 자동 실행하지 않습니다.'; },
+    renderAiConnection({ status, mode, data, error, checkedAt } = {}) {
+      // 호출마다 새 요소를 만들어 돌려주므로 이전 점검 결과와 오류 안내가 남지 않습니다. 다시 idle이 오면 점검 전 상태로 돌아갑니다.
+      const root = document.createElement('div');
+      root.append(text('h3', '', 'AI 연결 점검'));
+      const notice = modeLine(mode);
+      if (notice) root.append(notice);
+      const manual = '다시 점검은 사용자가 위의 「현재 API 연결 점검」 버튼을 직접 누를 때만 실행됩니다. 자동으로 다시 점검하지 않습니다.';
+      if (status === 'loading') {
+        root.append(text('p', 'state state-loading', 'AI 연결 점검 중'), text('p', 'muted', '점검 중에는 「취소」를 누를 수 있습니다. 취소한 뒤 늦게 도착한 응답은 현재 결과로 쓰지 않습니다.'));
+      } else if (status === 'error') {
+        root.append(aiErrorBox(error, 'AI 연결 점검 실패'), text('p', 'muted', manual));
+      } else if (status === 'ok' && data && typeof data === 'object') {
+        const authorization = data.audienceAuthorization === 'test' ? '시험 연결 점검(test)'
+          : data.audienceAuthorization === 'verified' ? '앱 권한 확인 후 점검(verified)' : '확인 불가(unknown)';
+        const list = document.createElement('dl');
+        list.append(
+          row('점검 종류', authorization),
+          row('응답 모델 수', Number.isFinite(data.modelCount) ? String(data.modelCount) : '확인 불가'),
+          row('점검 시각', safeText(typeof checkedAt === 'string' && checkedAt ? checkedAt : null)),
+        );
+        root.append(text('p', 'state state-ok', 'AI 연결 점검 완료'), list);
+        if (data.audienceAuthorization === 'test') root.append(text('p', 'muted', '시험 연결입니다. 실제 앱 권한을 확인한 결과가 아닙니다.'));
+        // 모델 목록 응답은 사건 설명이 아닙니다. 설명은 보안 기록에서 따로 요청하고 확인합니다.
+        root.append(text('p', 'state state-empty', '사건 설명은 아직 실행하지 않았습니다. 연결 점검만 마쳤으며, 모델 목록 응답은 사건 설명이 아닙니다.'), text('p', 'muted', manual));
+      } else if (status === 'ok') {
+        root.append(text('p', 'state state-empty', '확인 불가(unknown)'));
+      } else {
+        root.append(text('p', 'state state-empty', 'AI 연결 점검 전'), text('p', 'muted', manual));
+      }
+      return root;
+    },
+    renderExplanation({ event, explanation, checkedAt } = {}) {
+      const status = explanation?.status;
+      const eventId = typeof event?.id === 'string' ? event.id : '';
+      const root = document.createElement('div');
+      root.append(text('h3', '', 'AI 사건 설명'));
+      const notice = modeLine(explanation?.mode);
+      if (notice) root.append(notice);
+      if (status === 'ok' && eventId && typeof explanation.data?.summary === 'string') {
+        // 성공한 설명에만 사건 ID 표식을 붙입니다.
+        root.setAttribute('data-student-explanation-event', eventId);
+        const list = document.createElement('dl');
+        list.append(row('사건 ID', eventId), row('설명 요약', safeText(explanation.data.summary)));
+        if (typeof checkedAt === 'string' && checkedAt) list.append(row('확인 시각', safeText(checkedAt)));
+        root.append(text('p', 'state state-ok', 'AI 설명 수신'), list, text('p', 'muted', '설명은 참고용이며 조치를 자동으로 실행하지 않았습니다.'));
+      } else if (status === 'error') {
+        root.append(aiErrorBox(explanation.error, 'AI 설명 실패'), text('p', 'muted', '기록은 그대로 유지됩니다. 이 실패는 사건 기록이 바뀌었다는 뜻이 아닙니다.'));
+      } else if (status === 'loading') {
+        root.append(text('p', 'state state-loading', `AI 설명 요청 중${eventId ? ` (사건 ${eventId})` : ''}`));
+      } else if (status === 'ok') {
+        root.append(text('p', 'state state-empty', '확인 불가(unknown)'));
+      } else {
+        root.append(text('p', 'state state-empty', '보안 기록에서 사건을 골라 AI 설명을 요청하세요'));
+      }
+      return root;
+    },
     renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
   };
 }
