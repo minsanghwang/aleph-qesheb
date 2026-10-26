@@ -18,7 +18,7 @@
 
 ## 3. 폴더 구조와 작업 위치
 
-작업 위치(앱 폴더)는 시작 틀 안의 `on-client`입니다. PowerShell은 이 폴더에서 엽니다. 예: `C:\Users\User\Downloads\alekov-starter-0.2.14\on-client`
+작업 위치(앱 폴더)는 저장소 안의 `on-client`입니다(`package.json`이 있는 폴더). PowerShell은 이 폴더에서 엽니다. 상위 경로는 PC마다 다르므로 문서에 고정하지 않습니다.
 
 ```text
 on-client/
